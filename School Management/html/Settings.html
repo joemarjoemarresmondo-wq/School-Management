@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>School Management | Settings</title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <script src="../js/app.js" defer></script>
+  </head>
+  <body class="form-page">
+    <header class="site-header">
+      <div class="brand">School Management</div>
+      <div class="user">
+        <span id="userName"></span>
+        <button class="logout" id="logout">Log out</button>
+      </div>
+    </header>
+    <div class="layout">
+      <nav>
+        <p>Navigator</p>
+        <a href="Dashboard.html">View Student</a>
+        <a href="Quiz.html">Quiz Game</a>
+        <a href="StudentGrades.html">Student Grades</a>
+        <p>Settings</p>
+        <a href="Settings.html">Edit picture</a>
+      </nav>
+      <main class="content">
+        <p class="kicker">Student settings</p>
+        <h1>Edit picture</h1>
+        <p class="intro">Choose a picture to use on your student profile.</p>
+        <form id="settingsForm">
+          <img
+            class="profile-picture-preview"
+            id="currentPicture"
+            alt="Student profile picture"
+            hidden
+          />
+          <label for="picture">New profile picture</label>
+          <input id="picture" type="file" accept="image/*" required />
+          <p class="message" id="message" role="alert"></p>
+        </form>
+        <section class="settings-option">
+          <div>
+            <strong>Appearance</strong>
+            <p>Switch between light and dark mode.</p>
+          </div>
+          <button class="theme-button" id="themeToggle" type="button">
+            Dark mode
+          </button>
+        </section>
+        <section class="settings-option">
+          <div>
+            <strong>Change language</strong>
+            <p>Choose your preferred language.</p>
+          </div>
+          <select
+            class="language-select"
+            id="languageSelect"
+            aria-label="Change language"
+          >
+            <option value="en">English</option>
+            <option value="tl">Tagalog</option>
+          </select>
+        </section>
+        <div class="actions settings-actions">
+          <button class="primary" type="submit" form="settingsForm">
+            Save changes
+          </button>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

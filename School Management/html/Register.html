@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>School Management | Register</title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <script src="../js/app.js" defer></script>
+  </head>
+  <body class="auth-page">
+    <main class="auth-shell">
+      <section class="auth-intro">
+        <p class="eyebrow">School Management</p>
+        <h1>Create access.</h1>
+        <p>
+          Your name and UID must already belong to a student record added by an
+          admin.
+        </p>
+      </section>
+      <section class="auth-panel">
+        <h2>Register</h2>
+        <p class="sub">Set up access for an existing student.</p>
+        <form id="registerForm">
+          <label for="identity">Name / UID</label
+          ><input
+            id="identity"
+            required
+            placeholder="Enter name or UID"
+          /><label for="answer"
+            >Security question: What is your grade level and section?</label
+          ><input
+            id="answer"
+            required
+            placeholder="Example: G10 - Rose"
+          /><label for="password">Create password</label>
+          <div class="password">
+            <input
+              id="password"
+              type="password"
+              required
+              minlength="6"
+              placeholder="At least 6 characters"
+            /><button type="button" id="toggle">Show</button>
+          </div>
+          <p class="message" id="message" role="alert"></p>
+          <div class="actions">
+            <button class="primary" type="submit">Register</button
+            ><a class="button secondary" href="Login.html">Go Back</a>
+          </div>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>
