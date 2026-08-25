@@ -200,12 +200,16 @@ const applyLanguage = (language) => {
     '#adminSettingsForm label[for="picture"]': text.profilePicture,
     '#settingsForm label[for="picture"]': text.newPicture,
     'nav a[href="index.html"], nav a[href="../index.html"]': text.viewStudent,
-    'nav a[href="AddStudent.html"], nav a[href="html/AddStudent.html"]': text.addStudent,
+    'nav a[href="AddStudent.html"], nav a[href="html/AddStudent.html"]':
+      text.addStudent,
     'nav a[href="Quiz.html"], nav a[href="html/Quiz.html"]': text.quizGame,
-    'nav a[href="StudentGrades.html"], nav a[href="html/StudentGrades.html"]': text.studentGrades,
+    'nav a[href="StudentGrades.html"], nav a[href="html/StudentGrades.html"]':
+      text.studentGrades,
     "#logout": text.logout,
-    'a.back[href="index.html"], a.back[href="../index.html"]': text.backDashboard,
-    'a[href="index.html"].secondary, a[href="../index.html"].secondary': text.goBack,
+    'a.back[href="index.html"], a.back[href="../index.html"]':
+      text.backDashboard,
+    'a[href="index.html"].secondary, a[href="../index.html"].secondary':
+      text.goBack,
     "#togglePassword, #toggle": text.show,
     "#loginForm .primary": text.login,
     "#registerForm .primary": text.register,
@@ -346,64 +350,66 @@ const setupPasswordToggle = (buttonId) =>
 
 const setupLogin = () => {
   setupPasswordToggle("togglePassword");
-  document.getElementById("loginForm")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const identity = document
-      .getElementById("identity")
-      .value.trim()
-      .toLowerCase();
-    const password = document.getElementById("password").value;
-    const apiUser = await apiRequest("login", {
-      method: "POST",
-      body: JSON.stringify({ identity, password }),
+  document
+    .getElementById("loginForm")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const identity = document
+        .getElementById("identity")
+        .value.trim()
+        .toLowerCase();
+      const password = document.getElementById("password").value;
+      const apiUser = await apiRequest("login", {
+        method: "POST",
+        body: JSON.stringify({ identity, password }),
+      });
+      if (apiUser) {
+        sessionStorage.setItem("schoolUser", JSON.stringify(apiUser));
+        location.href = dashboardPath();
+        return;
+      }
+      if (identity === "admin123" && password === "Admin123") {
+        sessionStorage.setItem(
+          "schoolUser",
+          JSON.stringify({
+            role: "admin",
+            name: localStorage.getItem("schoolAdminProfile")
+              ? JSON.parse(localStorage.getItem("schoolAdminProfile")).name
+              : "Joemar",
+            title: localStorage.getItem("schoolAdminProfile")
+              ? JSON.parse(localStorage.getItem("schoolAdminProfile")).title
+              : "Admin / Owner / Developer",
+            uid: "ADMIN",
+          }),
+        );
+        location.href = dashboardPath();
+        return;
+      }
+      const student = readRecords("schoolStudents").find((item) =>
+        matchesIdentity(item, identity),
+      );
+      setMessage(
+        "message",
+        !student
+          ? "Student was not found. Ask an admin to add you first."
+          : !student.registered
+            ? "Please register this student account first."
+            : student.password !== password
+              ? "Incorrect password."
+              : "",
+      );
+      if (student?.registered && student.password === password) {
+        sessionStorage.setItem(
+          "schoolUser",
+          JSON.stringify({
+            role: "student",
+            name: student.name,
+            uid: student.uid,
+          }),
+        );
+        location.href = dashboardPath();
+      }
     });
-    if (apiUser) {
-      sessionStorage.setItem("schoolUser", JSON.stringify(apiUser));
-      location.href = dashboardPath();
-      return;
-    }
-    if (identity === "admin123" && password === "Admin123") {
-      sessionStorage.setItem(
-        "schoolUser",
-        JSON.stringify({
-          role: "admin",
-          name: localStorage.getItem("schoolAdminProfile")
-            ? JSON.parse(localStorage.getItem("schoolAdminProfile")).name
-            : "Joemar",
-          title: localStorage.getItem("schoolAdminProfile")
-            ? JSON.parse(localStorage.getItem("schoolAdminProfile")).title
-            : "Admin / Owner / Developer",
-          uid: "ADMIN",
-        }),
-      );
-      location.href = dashboardPath();
-      return;
-    }
-    const student = readRecords("schoolStudents").find((item) =>
-      matchesIdentity(item, identity),
-    );
-    setMessage(
-      "message",
-      !student
-        ? "Student was not found. Ask an admin to add you first."
-        : !student.registered
-          ? "Please register this student account first."
-          : student.password !== password
-            ? "Incorrect password."
-            : "",
-    );
-    if (student?.registered && student.password === password) {
-      sessionStorage.setItem(
-        "schoolUser",
-        JSON.stringify({
-          role: "student",
-          name: student.name,
-          uid: student.uid,
-        }),
-      );
-      location.href = dashboardPath();
-    }
-  });
 };
 
 const setupRegister = () => {
@@ -527,9 +533,14 @@ const setupDashboard = async () => {
       .querySelectorAll('[data-settings-role="student"]')
       .forEach((element) => element.remove());
   }
+  const localRecords = readRecords("schoolStudents");
   const apiRecords = await apiRequest("students");
-  const allRecords = apiRecords || readRecords("schoolStudents");
-  if (apiRecords) localStorage.setItem("schoolStudents", JSON.stringify(apiRecords));
+  const allRecords =
+    Array.isArray(apiRecords) && (apiRecords.length || !localRecords.length)
+      ? apiRecords
+      : localRecords;
+  if (Array.isArray(apiRecords) && apiRecords.length)
+    localStorage.setItem("schoolStudents", JSON.stringify(apiRecords));
   const records = allRecords;
   document.getElementById("total").textContent = records.length;
   document.getElementById("active").textContent = records.filter(
@@ -827,9 +838,7 @@ const setupAdminSettings = () => {
   setupTheme();
   setupLogout();
   const user = currentUser();
-  if (
-    !requireAdmin("Only the admin can open admin settings.", dashboardPath())
-  )
+  if (!requireAdmin("Only the admin can open admin settings.", dashboardPath()))
     return;
   setupAdminPicture(user);
   document.getElementById("userName").textContent =
