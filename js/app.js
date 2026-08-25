@@ -25,6 +25,20 @@ const currentUser = () => {
 const isRootIndex = () => !location.pathname.includes("/html/");
 const dashboardPath = () => (isRootIndex() ? "index.html" : "../index.html");
 const pagePath = (file) => (isRootIndex() ? `html/${file}` : file);
+const apiPath = (resource) =>
+  `${isRootIndex() ? "api" : "../api"}/api.php?resource=${encodeURIComponent(resource)}`;
+const apiRequest = async (resource, options = {}) => {
+  try {
+    const response = await fetch(apiPath(resource), {
+      headers: { "Content-Type": "application/json" },
+      ...options,
+    });
+    if (!response.ok) return null;
+    return response.json();
+  } catch {
+    return null;
+  }
+};
 
 const setMessage = (id, text) => {
   const element = document.getElementById(id);
@@ -332,13 +346,22 @@ const setupPasswordToggle = (buttonId) =>
 
 const setupLogin = () => {
   setupPasswordToggle("togglePassword");
-  document.getElementById("loginForm")?.addEventListener("submit", (event) => {
+  document.getElementById("loginForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const identity = document
       .getElementById("identity")
       .value.trim()
       .toLowerCase();
     const password = document.getElementById("password").value;
+    const apiUser = await apiRequest("login", {
+      method: "POST",
+      body: JSON.stringify({ identity, password }),
+    });
+    if (apiUser) {
+      sessionStorage.setItem("schoolUser", JSON.stringify(apiUser));
+      location.href = dashboardPath();
+      return;
+    }
     if (identity === "admin123" && password === "Admin123") {
       sessionStorage.setItem(
         "schoolUser",
@@ -387,7 +410,7 @@ const setupRegister = () => {
   setupPasswordToggle("toggle");
   document
     .getElementById("registerForm")
-    ?.addEventListener("submit", (event) => {
+    ?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const identity = document
         .getElementById("identity")
@@ -397,6 +420,19 @@ const setupRegister = () => {
         .getElementById("answer")
         .value.trim()
         .toLowerCase();
+      const apiResult = await apiRequest("register", {
+        method: "POST",
+        body: JSON.stringify({
+          identity,
+          answer,
+          password: document.getElementById("password").value,
+        }),
+      });
+      if (apiResult) {
+        alert("Registration complete. You can now log in.");
+        location.href = pagePath("Login.html");
+        return;
+      }
       const records = readRecords("schoolStudents");
       const index = records.findIndex((item) =>
         matchesIdentity(item, identity),
@@ -455,7 +491,7 @@ const setupRecovery = () =>
       result.style.display = "block";
     });
 
-const setupDashboard = () => {
+const setupDashboard = async () => {
   if (!document.getElementById("studentRows")) return;
   setupTheme();
   setupLogout();
@@ -491,7 +527,9 @@ const setupDashboard = () => {
       .querySelectorAll('[data-settings-role="student"]')
       .forEach((element) => element.remove());
   }
-  const allRecords = readRecords("schoolStudents");
+  const apiRecords = await apiRequest("students");
+  const allRecords = apiRecords || readRecords("schoolStudents");
+  if (apiRecords) localStorage.setItem("schoolStudents", JSON.stringify(apiRecords));
   const records = allRecords;
   document.getElementById("total").textContent = records.length;
   document.getElementById("active").textContent = records.filter(
@@ -635,8 +673,8 @@ const setupAddStudent = () => {
     const pictureFile = document.getElementById("picture").files[0];
     if (pictureFile && pictureFile.size > 2 * 1024 * 1024)
       return setMessage("message", "Student picture must be 2 MB or smaller.");
-    const saveStudent = (picture = "") => {
-      records.push({
+    const saveStudent = async (picture = "") => {
+      const student = {
         name,
         uid,
         birthdate: birthdate.value,
@@ -653,7 +691,12 @@ const setupAddStudent = () => {
         active: true,
         status: "Active",
         registered: false,
+      };
+      const apiResult = await apiRequest("students", {
+        method: "POST",
+        body: JSON.stringify(student),
       });
+      if (!apiResult) records.push(student);
       localStorage.setItem("schoolStudents", JSON.stringify(records));
       alert(`Student added. UID: ${uid}`);
       location.href = dashboardPath();
@@ -1594,6 +1637,10 @@ const setupQuiz = () => {
       date: new Date().toLocaleString(),
     });
     localStorage.setItem("schoolGrades", JSON.stringify(grades));
+    void apiRequest("grades", {
+      method: "POST",
+      body: JSON.stringify(grades[grades.length - 1]),
+    });
     renderHistory();
     result.hidden = false;
     const retryButton =
