@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard | SchoolManagement</title>
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body>
+    <div class="loader-container" id="dashboard-loader" role="status" aria-label="Loading dashboard">
+      <div class="loader" aria-hidden="true"></div>
+    </div>
+    <header class="dashboard-shell">
+      <nav class="dashboard-nav" aria-label="Dashboard navigation">
+        <section class="account-summary" aria-label="Signed-in account">
+          <p class="account-name" id="account-name"></p>
+          <p class="account-role" id="account-role"></p>
+        </section>
+        <button id="home-tab" class="dashboard-tab is-active" type="button" aria-pressed="true">
+          Home
+        </button>
+        <button id="logs-tab" class="dashboard-tab" type="button" aria-pressed="false" hidden>
+          Logs
+        </button>
+        <button id="quizzes-tab" class="dashboard-tab" type="button" aria-pressed="false" hidden>
+          Quizzes
+        </button>
+        <button id="logout-button" class="logout-button" type="button">Logout</button>
+      </nav>
+    </header>
+    <p class="dashboard-status" id="account-status" role="status" aria-live="polite" hidden></p>
+    <p class="dashboard-status" id="logout-status" role="status" aria-live="polite" hidden></p>
+    <main class="student-directory" aria-label="Dashboard">
+      <section id="home-view" aria-labelledby="student-list-heading">
+        <p class="eyebrow">SchoolManagement School Portal</p>
+        <h1 id="student-list-heading">Registered Students</h1>
+        <p class="directory-description">List of accounts registered on the school portal.</p>
+        <section class="student-total" aria-labelledby="student-total-label">
+          <p class="student-total-label" id="student-total-label">Total Registered Students</p>
+          <p class="student-total-count" id="student-total-count" aria-live="polite">—</p>
+        </section>
+        <p class="directory-status" id="student-list-status" role="status" aria-live="polite">
+          Loading registered students…
+        </p>
+        <ul class="student-list" id="student-list" aria-label="Registered students"></ul>
+      </section>
+      <section id="quizzes-view" aria-labelledby="quizzes-heading" hidden>
+        <h1 id="quizzes-heading">Quiz Games</h1>
+        <p class="directory-description">Create a quiz for students to play.</p>
+        <form id="quiz-form" class="quiz-form">
+          <label class="quiz-field">
+            Quiz title
+            <input id="quiz-title" name="title" type="text" maxlength="120" required />
+          </label>
+          <label class="quiz-field">
+            Subject
+            <input id="quiz-subject" name="subject" type="text" maxlength="120" required />
+          </label>
+          <label class="quiz-field">
+            Description <span class="optional-label">(optional)</span>
+            <textarea id="quiz-description" name="description" rows="2" maxlength="500"></textarea>
+          </label>
+          <div class="quiz-question-heading">
+            <h2>Questions</h2>
+            <button id="add-quiz-question" class="secondary-button" type="button">
+              Add question
+            </button>
+          </div>
+          <div id="quiz-question-list" class="quiz-question-list"></div>
+          <button class="logout-button quiz-submit" type="submit">Create Quiz</button>
+          <p id="quiz-form-status" class="directory-status" role="status" aria-live="polite"></p>
+        </form>
+        <section class="published-quizzes" aria-labelledby="published-quizzes-heading">
+          <h2 id="published-quizzes-heading">Created Quizzes</h2>
+          <p id="admin-quiz-status" class="directory-status" role="status" aria-live="polite">
+            Loading quizzes…
+          </p>
+          <ul id="admin-quiz-list" class="quiz-list"></ul>
+        </section>
+        <section class="published-quizzes" aria-labelledby="quiz-scores-heading">
+          <h2 id="quiz-scores-heading">Student Scores</h2>
+          <p id="quiz-scores-status" class="directory-status" role="status" aria-live="polite">
+            Loading student scores…
+          </p>
+          <div class="activity-log-table-wrap">
+            <table class="activity-log-table">
+              <caption class="visually-hidden">Quiz scores by student and subject</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Student</th>
+                  <th scope="col">Subject</th>
+                  <th scope="col">Quiz</th>
+                  <th scope="col">Score</th>
+                  <th scope="col">Submitted</th>
+                </tr>
+              </thead>
+              <tbody id="quiz-scores-list"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+      <section class="activity-log-section" id="activity-log-section" aria-labelledby="activity-log-heading" hidden>
+        <h2 id="activity-log-heading">Activity Logs</h2>
+        <p class="directory-description">Login and logout activity for registered accounts.</p>
+        <p class="directory-status" id="activity-log-status" role="status" aria-live="polite">
+          Loading activity logs…
+        </p>
+        <div class="activity-log-table-wrap">
+          <table class="activity-log-table">
+            <caption class="visually-hidden">Account login and logout activity</caption>
+            <thead>
+              <tr>
+                <th scope="col">No.</th>
+                <th scope="col">Name</th>
+                <th scope="col">Email</th>
+                <th scope="col">Role</th>
+                <th scope="col">Login</th>
+                <th scope="col">Logout</th>
+              </tr>
+            </thead>
+            <tbody id="activity-log-list"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <template id="quiz-question-template">
+      <fieldset class="quiz-question">
+        <legend class="quiz-question-legend"></legend>
+        <label class="quiz-field">
+          Question
+          <textarea class="question-prompt" rows="2" maxlength="500" required></textarea>
+        </label>
+        <div class="quiz-choice-grid">
+          <label class="quiz-field">Choice A<input class="question-choice" type="text" maxlength="250" required /></label>
+          <label class="quiz-field">Choice B<input class="question-choice" type="text" maxlength="250" required /></label>
+          <label class="quiz-field">Choice C<input class="question-choice" type="text" maxlength="250" required /></label>
+          <label class="quiz-field">Choice D<input class="question-choice" type="text" maxlength="250" required /></label>
+        </div>
+        <label class="quiz-field">
+          Correct answer
+          <select class="question-answer">
+            <option value="0">Choice A</option>
+            <option value="1">Choice B</option>
+            <option value="2">Choice C</option>
+            <option value="3">Choice D</option>
+          </select>
+        </label>
+        <button class="text-button remove-question" type="button">Remove question</button>
+      </fieldset>
+    </template>
+    <footer class="creator-credit">Created by Joemar Resmondo</footer>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-client.js" defer></script>
+    <script src="student-presence.js" defer></script>
+    <script src="dashboard-auth.js" defer></script>
+  </body>
+</html>

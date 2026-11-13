@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Student Dashboard | SchoolManagement</title>
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body>
+    <div class="loader-container" id="dashboard-loader" role="status" aria-label="Loading dashboard">
+      <div class="loader" aria-hidden="true"></div>
+    </div>
+    <header class="dashboard-shell">
+      <nav class="dashboard-nav" aria-label="Dashboard navigation">
+        <section class="account-summary" aria-label="Signed-in account">
+          <p class="account-name" id="account-name"></p>
+          <p class="account-role" id="account-role"></p>
+        </section>
+        <button id="student-home-tab" class="dashboard-tab is-active" type="button" aria-pressed="true">
+          Home
+        </button>
+        <button id="student-quiz-tab" class="dashboard-tab" type="button" aria-pressed="false">
+          Quiz Game
+        </button>
+        <button id="logout-button" class="logout-button" type="button">Logout</button>
+      </nav>
+    </header>
+    <p class="dashboard-status" id="account-status" role="status" aria-live="polite" hidden></p>
+    <p class="dashboard-status" id="logout-status" role="status" aria-live="polite" hidden></p>
+    <main class="student-directory" aria-labelledby="student-dashboard-heading">
+      <section id="student-home-view" aria-labelledby="student-dashboard-heading">
+        <p class="eyebrow">SchoolManagement School Portal</p>
+        <h1 id="student-dashboard-heading">Student Dashboard</h1>
+        <p class="directory-description">Welcome to your SchoolManagement student account.</p>
+        <section aria-labelledby="student-roster-heading">
+          <h2 id="student-roster-heading">Students</h2>
+          <p class="directory-status" id="student-list-status" role="status" aria-live="polite">
+            Loading student status…
+          </p>
+          <ul class="student-list" id="student-list" aria-label="Student online status"></ul>
+        </section>
+      </section>
+      <section id="student-quiz-view" hidden>
+        <section class="published-quizzes" aria-labelledby="student-quizzes-heading">
+          <h1 id="student-quizzes-heading">Quiz Games</h1>
+          <p id="student-quiz-status" class="directory-status" role="status" aria-live="polite">
+            Loading quizzes…
+          </p>
+          <ul id="student-quiz-list" class="quiz-list"></ul>
+          <section id="quiz-player" class="quiz-player" aria-live="polite" hidden>
+            <h2 id="quiz-player-title"></h2>
+            <p id="quiz-player-description" class="directory-description"></p>
+            <form id="student-quiz-form"></form>
+            <button id="submit-quiz" class="logout-button" type="button" form="student-quiz-form">
+              Submit Answers
+            </button>
+            <p id="quiz-result" class="quiz-result" role="status" aria-live="polite"></p>
+          </section>
+        </section>
+        <section class="published-quizzes" aria-labelledby="student-scores-heading">
+          <h2 id="student-scores-heading">My Scores by Subject</h2>
+          <p id="student-scores-status" class="directory-status" role="status" aria-live="polite">
+            Loading your scores…
+          </p>
+          <ul id="student-scores-list" class="quiz-list"></ul>
+        </section>
+      </section>
+    </main>
+    <footer class="creator-credit">Created by Joemar Resmondo</footer>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-client.js" defer></script>
+    <script src="student-presence.js" defer></script>
+    <script src="student-dashboard-auth.js" defer></script>
+  </body>
+</html>
