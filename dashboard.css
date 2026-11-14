@@ -200,6 +200,167 @@ body {
   font-size: 14px;
 }
 
+.profile-details {
+  display: grid;
+  gap: 0;
+  margin: 24px 0 0;
+  border: 1px solid #dce4df;
+  border-radius: 12px;
+  background: #fbfcfa;
+}
+
+.profile-details div {
+  display: grid;
+  grid-template-columns: minmax(100px, 0.35fr) minmax(0, 1fr);
+  gap: 16px;
+  padding: 16px;
+}
+
+.profile-details div + div {
+  border-top: 1px solid #e5ebe7;
+}
+
+.profile-details dt {
+  color: #6b7974;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.profile-details dd {
+  margin: 0;
+  color: #174b40;
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.profile-picture-editor {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 24px 0;
+}
+
+.profile-avatar {
+  width: 96px;
+  height: 96px;
+  flex: 0 0 auto;
+  border: 2px solid #dce4df;
+  border-radius: 50%;
+  background: #f3f5f1;
+  object-fit: cover;
+}
+
+.student-avatar {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #f3f5f1;
+  object-fit: cover;
+}
+
+.profile-picture-controls {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.picture-edit-button {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.profile-picture-status {
+  margin: 0;
+  color: #6b7974;
+  font-size: 12px;
+}
+
+.profile-picture-status:not([hidden]) {
+  display: block;
+}
+
+.student-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.student-identity > span {
+  overflow-wrap: anywhere;
+}
+
+.profile-form {
+  display: grid;
+  max-width: 480px;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.profile-field {
+  display: grid;
+  gap: 7px;
+  color: #263b35;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.profile-field input {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid #dce4df;
+  border-radius: 8px;
+  color: #263b35;
+  background: #fff;
+  font: inherit;
+  font-weight: 400;
+}
+
+.profile-field input:focus {
+  border-color: #50806d;
+  outline: 3px solid rgba(139, 185, 165, 0.35);
+}
+
+.profile-field .password-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-field .show-password {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid #dce4df;
+  border-radius: 8px;
+  color: #174b40;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.profile-hint,
+.profile-role {
+  margin: -6px 0 0;
+  color: #6b7974;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.profile-role {
+  color: #174b40;
+  font-weight: 700;
+}
+
+.profile-status {
+  margin: 0;
+  text-align: left;
+}
+
 .student-total {
   display: flex;
   min-height: 120px;
@@ -324,6 +485,13 @@ body {
 .quiz-question-list {
   display: grid;
   gap: 16px;
+}
+
+.quiz-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
 }
 
 .quiz-question {

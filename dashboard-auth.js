@@ -61,6 +61,7 @@ const requireSignedInUser = async () => {
 const dashboardLoader = document.querySelector("#dashboard-loader");
 const logoutButton = document.querySelector("#logout-button");
 const homeTab = document.querySelector("#home-tab");
+const profileTab = document.querySelector("#profile-tab");
 const logsTab = document.querySelector("#logs-tab");
 const quizzesTab = document.querySelector("#quizzes-tab");
 const accountName = document.querySelector("#account-name");
@@ -68,10 +69,15 @@ const accountRole = document.querySelector("#account-role");
 const accountStatus = document.querySelector("#account-status");
 const logoutStatus = document.querySelector("#logout-status");
 const homeView = document.querySelector("#home-view");
+const profileView = document.querySelector("#profile-view");
+const profileName = document.querySelector("#profile-name");
+const profileEmail = document.querySelector("#profile-email");
+const profileRole = document.querySelector("#profile-role");
 const quizzesView = document.querySelector("#quizzes-view");
 const studentList = document.querySelector("#student-list");
 const studentListStatus = document.querySelector("#student-list-status");
 const studentTotalCount = document.querySelector("#student-total-count");
+let profilePictureEditor = null;
 const activityLogSection = document.querySelector("#activity-log-section");
 const activityLogList = document.querySelector("#activity-log-list");
 const activityLogStatus = document.querySelector("#activity-log-status");
@@ -79,6 +85,8 @@ const quizForm = document.querySelector("#quiz-form");
 const quizQuestionList = document.querySelector("#quiz-question-list");
 const quizQuestionTemplate = document.querySelector("#quiz-question-template");
 const quizFormStatus = document.querySelector("#quiz-form-status");
+const quizSubmitButton = document.querySelector("#quiz-submit");
+const cancelQuizEditButton = document.querySelector("#cancel-quiz-edit");
 const adminQuizList = document.querySelector("#admin-quiz-list");
 const adminQuizStatus = document.querySelector("#admin-quiz-status");
 const quizScoresList = document.querySelector("#quiz-scores-list");
@@ -86,6 +94,7 @@ const quizScoresStatus = document.querySelector("#quiz-scores-status");
 let adminUserId = null;
 let activityAccessToken = null;
 let closeActivitySessionOnExit = true;
+let editingQuizId = null;
 
 window.supabaseClient.auth.onAuthStateChange((_event, session) => {
   activityAccessToken = session?.access_token ?? null;
@@ -129,11 +138,15 @@ const startActivitySession = async (user) => {
 const setDashboardView = (view) => {
   const showLogs = view === "logs" && !logsTab.hidden;
   const showQuizzes = view === "quizzes" && !quizzesTab.hidden;
-  homeView.hidden = showLogs;
+  const showProfile = view === "profile";
+  homeView.hidden = showLogs || showQuizzes || showProfile;
+  profileView.hidden = !showProfile;
   activityLogSection.hidden = !showLogs;
   quizzesView.hidden = !showQuizzes;
-  homeTab.classList.toggle("is-active", !showLogs && !showQuizzes);
-  homeTab.setAttribute("aria-pressed", String(!showLogs && !showQuizzes));
+  homeTab.classList.toggle("is-active", !showLogs && !showQuizzes && !showProfile);
+  homeTab.setAttribute("aria-pressed", String(!showLogs && !showQuizzes && !showProfile));
+  profileTab.classList.toggle("is-active", showProfile);
+  profileTab.setAttribute("aria-pressed", String(showProfile));
   logsTab.classList.toggle("is-active", showLogs);
   logsTab.setAttribute("aria-pressed", String(showLogs));
   quizzesTab.classList.toggle("is-active", showQuizzes);
@@ -143,6 +156,7 @@ const setDashboardView = (view) => {
 const switchDashboardView = async (view) => {
   dashboardLoader.hidden = false;
   homeTab.disabled = true;
+  profileTab.disabled = true;
   logsTab.disabled = true;
   quizzesTab.disabled = true;
   const startedAt = performance.now();
@@ -163,12 +177,14 @@ const switchDashboardView = async (view) => {
   } finally {
     dashboardLoader.hidden = true;
     homeTab.disabled = false;
+    profileTab.disabled = false;
     logsTab.disabled = false;
     quizzesTab.disabled = false;
   }
 };
 
 homeTab.addEventListener("click", () => switchDashboardView("home"));
+profileTab.addEventListener("click", () => switchDashboardView("profile"));
 logsTab.addEventListener("click", () => switchDashboardView("logs"));
 quizzesTab.addEventListener("click", () => switchDashboardView("quizzes"));
 
@@ -197,6 +213,60 @@ const updateQuizQuestionLabels = () => {
 document.querySelector("#add-quiz-question").addEventListener("click", addQuizQuestion);
 addQuizQuestion();
 
+const resetQuizForm = () => {
+  quizForm.reset();
+  quizQuestionList.replaceChildren();
+  addQuizQuestion();
+  editingQuizId = null;
+  quizSubmitButton.textContent = "Create Quiz";
+  cancelQuizEditButton.hidden = true;
+};
+
+const editQuiz = async (quiz) => {
+  quizFormStatus.textContent = "Loading quiz questions…";
+  const { data: questions, error } = await window.supabaseClient.rpc(
+    "get_admin_quiz_questions",
+    { p_quiz_id: quiz.id },
+  );
+  if (error) {
+    quizFormStatus.textContent = `Unable to load quiz questions: ${error.message}`;
+    return;
+  }
+  if (!questions.length) {
+    quizFormStatus.textContent = "This quiz has no questions to edit.";
+    return;
+  }
+
+  quizForm.elements.title.value = quiz.title;
+  quizForm.elements.subject.value = quiz.subject;
+  quizForm.elements.description.value = quiz.description || "";
+  quizQuestionList.replaceChildren();
+  for (const savedQuestion of questions) {
+    addQuizQuestion();
+    const question = quizQuestionList.lastElementChild;
+    question.querySelector(".quiz-question-legend").textContent =
+      `Question ${savedQuestion.question_position}`;
+    question.querySelector(".question-prompt").value = savedQuestion.prompt;
+    question.querySelectorAll(".question-choice").forEach((choice, index) => {
+      choice.value = savedQuestion.choices[index];
+    });
+    question.querySelector(".question-answer").value = String(
+      savedQuestion.answer_index,
+    );
+  }
+
+  editingQuizId = quiz.id;
+  quizSubmitButton.textContent = "Save Changes";
+  cancelQuizEditButton.hidden = false;
+  quizFormStatus.textContent = "Edit the quiz and its questions, then save your changes.";
+  quizForm.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+cancelQuizEditButton.addEventListener("click", () => {
+  resetQuizForm();
+  quizFormStatus.textContent = "Quiz edit canceled.";
+});
+
 const loadAdminQuizzes = async () => {
   const { data: quizzes, error } = await window.supabaseClient
     .from("quizzes")
@@ -211,11 +281,18 @@ const loadAdminQuizzes = async () => {
   adminQuizList.replaceChildren();
   for (const quiz of quizzes) {
     const item = document.createElement("li");
+    const details = document.createElement("div");
     const title = document.createElement("strong");
     const description = document.createElement("p");
+    const editButton = document.createElement("button");
     title.textContent = `${quiz.subject} — ${quiz.title}`;
     description.textContent = quiz.description || "No description";
-    item.append(title, description);
+    editButton.className = "secondary-button";
+    editButton.type = "button";
+    editButton.textContent = "Edit";
+    editButton.addEventListener("click", () => editQuiz(quiz));
+    details.append(title, description);
+    item.append(details, editButton);
     adminQuizList.append(item);
   }
 
@@ -284,11 +361,37 @@ quizForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  const submitButton = quizForm.querySelector('button[type="submit"]');
-  submitButton.disabled = true;
-  quizFormStatus.textContent = "Creating quiz…";
+  quizSubmitButton.disabled = true;
+  quizFormStatus.textContent = editingQuizId ? "Saving quiz changes…" : "Creating quiz…";
 
   try {
+    const questions = [...quizQuestionList.children].map((question, index) => ({
+      question_position: index + 1,
+      prompt: question.querySelector(".question-prompt").value.trim(),
+      choices: [...question.querySelectorAll(".question-choice")].map((choice) =>
+        choice.value.trim(),
+      ),
+      answer_index: Number(question.querySelector(".question-answer").value),
+    }));
+
+    if (editingQuizId) {
+      const { error } = await window.supabaseClient.rpc("update_admin_quiz", {
+        p_quiz_id: editingQuizId,
+        p_title: quizForm.elements.title.value.trim(),
+        p_subject: quizForm.elements.subject.value.trim(),
+        p_description: quizForm.elements.description.value.trim(),
+        p_questions: questions,
+      });
+      if (error) {
+        throw new Error(`Unable to update quiz: ${error.message}`);
+      }
+
+      resetQuizForm();
+      quizFormStatus.textContent = "Quiz updated successfully.";
+      await loadAdminQuizzes();
+      return;
+    }
+
     const { data: quiz, error: quizError } = await window.supabaseClient
       .from("quizzes")
       .insert({
@@ -304,18 +407,14 @@ quizForm.addEventListener("submit", async (event) => {
       throw new Error(`Unable to create quiz: ${quizError.message}`);
     }
 
-    const questions = [...quizQuestionList.children].map((question, index) => ({
+    const newQuestions = questions.map(({ question_position, ...question }) => ({
       quiz_id: quiz.id,
-      position: index + 1,
-      prompt: question.querySelector(".question-prompt").value.trim(),
-      choices: [...question.querySelectorAll(".question-choice")].map((choice) =>
-        choice.value.trim(),
-      ),
-      answer_index: Number(question.querySelector(".question-answer").value),
+      position: question_position,
+      ...question,
     }));
     const { error: questionError } = await window.supabaseClient
       .from("quiz_questions")
-      .insert(questions);
+      .insert(newQuestions);
 
     if (questionError) {
       const { error: cleanupError } = await window.supabaseClient
@@ -328,15 +427,13 @@ quizForm.addEventListener("submit", async (event) => {
       throw new Error(`Unable to save quiz questions: ${questionError.message}.${cleanupMessage}`);
     }
 
-    quizForm.reset();
-    quizQuestionList.replaceChildren();
-    addQuizQuestion();
+    resetQuizForm();
     quizFormStatus.textContent = "Quiz created and published for students.";
     await loadAdminQuizzes();
   } catch (error) {
     quizFormStatus.textContent = error.message;
   } finally {
-    submitButton.disabled = false;
+    quizSubmitButton.disabled = false;
   }
 });
 
@@ -349,7 +446,7 @@ if (new URLSearchParams(window.location.search).get("loginLog") === "failed") {
 const loadSignedInProfile = async (user) => {
   const { data: profile, error } = await window.supabaseClient
     .from("profiles")
-    .select("full_name, role")
+    .select("full_name, role, avatar_path")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -367,6 +464,17 @@ const loadSignedInProfile = async (user) => {
 
   accountName.textContent = `Name: ${profile.full_name || "Unnamed user"}`;
   accountRole.textContent = `Role: ${profile.role}`;
+  profileName.textContent = profile.full_name || "Unnamed user";
+  profileEmail.textContent = user.email || "Not available";
+  profileRole.textContent = "Administrator";
+  profilePictureEditor = window.createProfilePictureEditor({
+    userId: user.id,
+    image: document.querySelector("#profile-picture"),
+    input: document.querySelector("#profile-picture-input"),
+    button: document.querySelector("#profile-picture-button"),
+    status: document.querySelector("#profile-picture-status"),
+  });
+  profilePictureEditor.setAvatarPath(profile.avatar_path);
   return profile;
 };
 
@@ -439,7 +547,7 @@ const loadRegisteredStudents = async () => {
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await window.supabaseClient
       .from("profiles")
-      .select("full_name, last_seen_at")
+      .select("full_name, last_seen_at, avatar_path")
       .eq("role", "student")
       .order("full_name", { ascending: true })
       .range(from, from + pageSize - 1);
@@ -459,14 +567,22 @@ const loadRegisteredStudents = async () => {
   studentTotalCount.textContent = String(students.length);
   for (const student of students) {
     const item = document.createElement("li");
+    const identity = document.createElement("div");
+    const avatar = document.createElement("img");
     const name = document.createElement("span");
     const status = document.createElement("span");
     const isActive = window.studentPresence.isActive(student.last_seen_at);
 
+    identity.className = "student-identity";
+    avatar.className = "student-avatar";
+    avatar.alt = "";
+    avatar.loading = "lazy";
+    window.setProfilePicture(avatar, student.avatar_path);
     name.textContent = student.full_name || "Unnamed student";
     status.className = `presence-status ${isActive ? "is-online" : "is-offline"}`;
     status.textContent = isActive ? "Active" : "Offline";
-    item.append(name, status);
+    identity.append(avatar, name);
+    item.append(identity, status);
     studentList.append(item);
   }
 

@@ -19,6 +19,9 @@
         <button id="home-tab" class="dashboard-tab is-active" type="button" aria-pressed="true">
           Home
         </button>
+        <button id="profile-tab" class="dashboard-tab" type="button" aria-pressed="false">
+          Profile
+        </button>
         <button id="logs-tab" class="dashboard-tab" type="button" aria-pressed="false" hidden>
           Logs
         </button>
@@ -44,6 +47,55 @@
         </p>
         <ul class="student-list" id="student-list" aria-label="Registered students"></ul>
       </section>
+      <section id="profile-view" aria-labelledby="profile-heading" hidden>
+        <p class="eyebrow">Your account</p>
+        <h1 id="profile-heading">My Profile</h1>
+        <p class="directory-description">Your administrator account details.</p>
+        <div class="profile-picture-editor">
+          <img
+            class="profile-avatar"
+            id="profile-picture"
+            src="Pictures/UserDefaultPicture.jpg"
+            alt="Your profile picture"
+          />
+          <div class="profile-picture-controls">
+            <button
+              class="secondary-button picture-edit-button"
+              id="profile-picture-button"
+              type="button"
+            >
+              Edit Picture
+            </button>
+            <input
+              id="profile-picture-input"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              hidden
+            />
+            <p
+              class="profile-picture-status"
+              id="profile-picture-status"
+              role="status"
+              aria-live="polite"
+              hidden
+            ></p>
+          </div>
+        </div>
+        <dl class="profile-details">
+          <div>
+            <dt>Full name</dt>
+            <dd id="profile-name"></dd>
+          </div>
+          <div>
+            <dt>Email</dt>
+            <dd id="profile-email"></dd>
+          </div>
+          <div>
+            <dt>Account type</dt>
+            <dd id="profile-role"></dd>
+          </div>
+        </dl>
+      </section>
       <section id="quizzes-view" aria-labelledby="quizzes-heading" hidden>
         <h1 id="quizzes-heading">Quiz Games</h1>
         <p class="directory-description">Create a quiz for students to play.</p>
@@ -67,7 +119,14 @@
             </button>
           </div>
           <div id="quiz-question-list" class="quiz-question-list"></div>
-          <button class="logout-button quiz-submit" type="submit">Create Quiz</button>
+          <div class="quiz-form-actions">
+            <button id="quiz-submit" class="logout-button quiz-submit" type="submit">
+              Create Quiz
+            </button>
+            <button id="cancel-quiz-edit" class="secondary-button" type="button" hidden>
+              Cancel edit
+            </button>
+          </div>
           <p id="quiz-form-status" class="directory-status" role="status" aria-live="polite"></p>
         </form>
         <section class="published-quizzes" aria-labelledby="published-quizzes-heading">
@@ -151,6 +210,7 @@
     <footer class="creator-credit">Created by Joemar Resmondo</footer>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js" defer></script>
+    <script src="profile-picture.js" defer></script>
     <script src="student-presence.js" defer></script>
     <script src="dashboard-auth.js" defer></script>
   </body>

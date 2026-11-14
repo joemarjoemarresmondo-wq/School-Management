@@ -8,30 +8,95 @@ resetForm.querySelectorAll("input, button").forEach((control) => {
   control.disabled = true;
 });
 
-const checkRecoverySession = async () => {
-  const { data, error } = await window.supabaseClient.auth.getSession();
-  if (error) {
-    throw error;
+const showResetError = (message) => {
+  resetForm.hidden = true;
+  resetStatus.textContent = message;
+  resetStatus.hidden = false;
+};
+
+const processRecoveryCallback = async () => {
+  const callbackUrl = new URL(window.location.href);
+  const query = callbackUrl.searchParams;
+  const hash = new URLSearchParams(callbackUrl.hash.slice(1));
+  const callbackError =
+    query.get("error_description") ||
+    query.get("error") ||
+    hash.get("error_description") ||
+    hash.get("error");
+
+  if (callbackError) {
+    throw new Error(callbackError);
   }
 
-  if (!data.session) {
-    resetForm.hidden = true;
-    resetStatus.textContent =
-      "This password reset link is invalid or expired. Request a new one from the login page.";
-    resetStatus.hidden = false;
+  const existingSession = await window.supabaseClient.auth.getSession();
+  if (existingSession.error) {
+    throw existingSession.error;
+  }
+  if (existingSession.data.session) {
+    return existingSession.data.session;
+  }
+
+  const code = query.get("code");
+  if (code) {
+    const { data, error } =
+      await window.supabaseClient.auth.exchangeCodeForSession(code);
+    if (error) {
+      throw error;
+    }
+    return data.session;
+  }
+
+  const tokenHash = query.get("token_hash");
+  const type = query.get("type") || hash.get("type");
+  if (tokenHash && type === "recovery") {
+    const { data, error } = await window.supabaseClient.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: "recovery",
+    });
+    if (error) {
+      throw error;
+    }
+    return data.session;
+  }
+
+  const accessToken = hash.get("access_token");
+  const refreshToken = hash.get("refresh_token");
+  if (type === "recovery" && accessToken && refreshToken) {
+    const { data, error } = await window.supabaseClient.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (error) {
+      throw error;
+    }
+    return data.session;
+  }
+
+  return null;
+};
+
+const checkRecoverySession = async () => {
+  const session = await processRecoveryCallback();
+  if (!session) {
+    showResetError(
+      "No valid password reset session was found. Request a new reset link and open the newest email link in the same browser.",
+    );
     return;
   }
 
+  window.history.replaceState({}, document.title, window.location.pathname);
   recoverySessionReady = true;
+  resetStatus.textContent = "Reset link verified. Choose a new password.";
+  resetStatus.hidden = false;
   resetForm.querySelectorAll("input, button").forEach((control) => {
     control.disabled = false;
   });
 };
 
 checkRecoverySession().catch((error) => {
-  resetForm.hidden = true;
-  resetStatus.textContent = `Unable to verify this reset link: ${error.message}`;
-  resetStatus.hidden = false;
+  showResetError(
+    `Unable to verify this reset link: ${error.message}. Request a new link if this one has expired.`,
+  );
 });
 
 resetForm.addEventListener("submit", async (event) => {
@@ -57,6 +122,12 @@ resetForm.addEventListener("submit", async (event) => {
       resetStatus.textContent = `Unable to update your password: ${error.message}`;
       resetStatus.hidden = false;
       return;
+    }
+
+    const { error: signOutError } =
+      await window.supabaseClient.auth.signOut({ scope: "local" });
+    if (signOutError) {
+      throw new Error(`Password updated, but unable to finish reset: ${signOutError.message}`);
     }
 
     resetForm.reset();

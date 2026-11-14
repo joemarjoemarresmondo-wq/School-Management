@@ -5,9 +5,18 @@ const accountStatus = document.querySelector("#account-status");
 const logoutButton = document.querySelector("#logout-button");
 const logoutStatus = document.querySelector("#logout-status");
 const homeTab = document.querySelector("#student-home-tab");
+const profileTab = document.querySelector("#student-profile-tab");
 const quizTab = document.querySelector("#student-quiz-tab");
 const homeView = document.querySelector("#student-home-view");
+const profileView = document.querySelector("#student-profile-view");
 const quizView = document.querySelector("#student-quiz-view");
+const profileForm = document.querySelector("#student-profile-form");
+const profileName = document.querySelector("#student-profile-name");
+const profileEmail = document.querySelector("#student-profile-email");
+const profileOldPassword = document.querySelector("#student-profile-old-password");
+const profilePassword = document.querySelector("#student-profile-password");
+const profileStatus = document.querySelector("#student-profile-status");
+const saveProfileButton = document.querySelector("#save-student-profile");
 const studentList = document.querySelector("#student-list");
 const studentListStatus = document.querySelector("#student-list-status");
 const studentQuizStatus = document.querySelector("#student-quiz-status");
@@ -28,17 +37,22 @@ let studentUserId = null;
 
 const switchStudentView = async (view) => {
   const showQuiz = view === "quiz";
+  const showProfile = view === "profile";
   dashboardLoader.hidden = false;
   homeTab.disabled = true;
+  profileTab.disabled = true;
   quizTab.disabled = true;
   const startedAt = performance.now();
 
   try {
     await new Promise((resolve) => requestAnimationFrame(resolve));
-    homeView.hidden = showQuiz;
+    homeView.hidden = showQuiz || showProfile;
+    profileView.hidden = !showProfile;
     quizView.hidden = !showQuiz;
-    homeTab.classList.toggle("is-active", !showQuiz);
-    homeTab.setAttribute("aria-pressed", String(!showQuiz));
+    homeTab.classList.toggle("is-active", !showQuiz && !showProfile);
+    homeTab.setAttribute("aria-pressed", String(!showQuiz && !showProfile));
+    profileTab.classList.toggle("is-active", showProfile);
+    profileTab.setAttribute("aria-pressed", String(showProfile));
     quizTab.classList.toggle("is-active", showQuiz);
     quizTab.setAttribute("aria-pressed", String(showQuiz));
     if (showQuiz) {
@@ -53,11 +67,13 @@ const switchStudentView = async (view) => {
   } finally {
     dashboardLoader.hidden = true;
     homeTab.disabled = false;
+    profileTab.disabled = false;
     quizTab.disabled = false;
   }
 };
 
 homeTab.addEventListener("click", () => switchStudentView("home"));
+profileTab.addEventListener("click", () => switchStudentView("profile"));
 quizTab.addEventListener("click", () => switchStudentView("quiz"));
 
 if (new URLSearchParams(window.location.search).get("loginLog") === "failed") {
@@ -131,7 +147,7 @@ const loadStudentDashboard = async () => {
 
   const { data: profile, error: profileError } = await window.supabaseClient
     .from("profiles")
-    .select("full_name, role")
+    .select("full_name, role, avatar_path")
     .eq("id", userData.user.id)
     .maybeSingle();
 
@@ -159,9 +175,19 @@ const loadStudentDashboard = async () => {
   }
   activityAccessToken = sessionData.session?.access_token ?? null;
   studentUserId = userData.user.id;
+  const profilePictureEditor = window.createProfilePictureEditor({
+    userId: studentUserId,
+    image: document.querySelector("#profile-picture"),
+    input: document.querySelector("#profile-picture-input"),
+    button: document.querySelector("#profile-picture-button"),
+    status: document.querySelector("#profile-picture-status"),
+  });
+  profilePictureEditor.setAvatarPath(profile.avatar_path);
 
   accountName.textContent = `Name: ${profile.full_name || "Unnamed student"}`;
   accountRole.textContent = `Role: ${profile.role}`;
+  profileName.value = profile.full_name || "";
+  profileEmail.value = userData.user.email || "";
   const presenceError = await window.studentPresence.update(userData.user.id);
   if (presenceError) {
     throw new Error(`Unable to update your online status: ${presenceError.message}`);
@@ -181,10 +207,126 @@ const loadStudentDashboard = async () => {
   dashboardLoader.hidden = true;
 };
 
+profileForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const fullName = profileName.value.trim();
+  const password = profilePassword.value;
+  profileName.setCustomValidity(fullName ? "" : "Enter your full name.");
+  profileOldPassword.required = Boolean(password);
+  profileOldPassword.setCustomValidity(
+    password && !profileOldPassword.value
+      ? "Enter your old password to change your password."
+      : "",
+  );
+  if (!profileForm.reportValidity()) {
+    return;
+  }
+
+  const email = profileEmail.value.trim();
+  const oldPassword = profileOldPassword.value;
+  const { data: userData, error: userError } =
+    await window.supabaseClient.auth.getUser();
+
+  if (userError || !userData.user) {
+    profileStatus.textContent = `Unable to verify your account: ${
+      userError?.message || "no signed-in user was found."
+    }`;
+    profileStatus.hidden = false;
+    return;
+  }
+
+  saveProfileButton.disabled = true;
+  profileStatus.hidden = true;
+  dashboardLoader.hidden = false;
+
+  try {
+    if (password) {
+      const { data: verifiedUser, error: passwordError } =
+        await window.supabaseClient.auth.signInWithPassword({
+          email: userData.user.email,
+          password: oldPassword,
+        });
+      if (passwordError) {
+        if (
+          passwordError.code === "invalid_credentials" ||
+          passwordError.message === "Invalid login credentials"
+        ) {
+          throw new Error("Old password is incorrect.");
+        }
+        throw new Error(
+          `Unable to verify your old password: ${passwordError.message}`,
+        );
+      }
+      if (verifiedUser.user?.id !== userData.user.id) {
+        throw new Error("Unable to verify your old password for this account.");
+      }
+    }
+
+    const authUpdates = { data: { full_name: fullName } };
+    if (email !== userData.user.email) {
+      authUpdates.email = email;
+    }
+    if (password) {
+      authUpdates.password = password;
+    }
+
+    const { error: authUpdateError } =
+      await window.supabaseClient.auth.updateUser(authUpdates);
+    if (authUpdateError) {
+      throw new Error(`Unable to update your account: ${authUpdateError.message}`);
+    }
+
+    const { data: updatedProfile, error: profileUpdateError } =
+      await window.supabaseClient
+        .from("profiles")
+        .update({ full_name: fullName })
+        .eq("id", studentUserId)
+        .select("id")
+        .maybeSingle();
+
+    if (profileUpdateError) {
+      throw new Error(
+        `Your account settings were updated, but your profile name could not be saved: ${profileUpdateError.message}`,
+      );
+    }
+    if (!updatedProfile) {
+      throw new Error(
+        "Your account settings were updated, but no profile record was changed.",
+      );
+    }
+
+    accountName.textContent = `Name: ${fullName || "Unnamed student"}`;
+    profileOldPassword.value = "";
+    profilePassword.value = "";
+    const changedPassword = password ? " Your password was updated." : "";
+    profileStatus.textContent =
+      email !== userData.user.email
+        ? `Profile updated. Check your email and confirm the change before the new address becomes active.${changedPassword}`
+        : `Profile updated.${changedPassword}`;
+    profileStatus.hidden = false;
+  } catch (error) {
+    profileStatus.textContent = error.message;
+    profileStatus.hidden = false;
+  } finally {
+    dashboardLoader.hidden = true;
+    saveProfileButton.disabled = false;
+  }
+});
+
+for (const button of profileForm.querySelectorAll(".show-password")) {
+  const passwordInput = document.getElementById(button.getAttribute("aria-controls"));
+  button.addEventListener("click", () => {
+    const isVisible = passwordInput.type === "text";
+    passwordInput.type = isVisible ? "password" : "text";
+    button.textContent = isVisible ? "Show" : "Hide";
+    button.setAttribute("aria-pressed", String(!isVisible));
+  });
+}
+
 const loadStudents = async () => {
   const { data: students, error } = await window.supabaseClient
     .from("profiles")
-    .select("full_name, last_seen_at")
+    .select("full_name, last_seen_at, avatar_path")
     .eq("role", "student")
     .order("full_name", { ascending: true });
 
@@ -196,14 +338,22 @@ const loadStudents = async () => {
   studentList.replaceChildren();
   for (const student of students) {
     const item = document.createElement("li");
+    const identity = document.createElement("div");
+    const avatar = document.createElement("img");
     const name = document.createElement("span");
     const status = document.createElement("span");
     const isActive = window.studentPresence.isActive(student.last_seen_at);
 
+    identity.className = "student-identity";
+    avatar.className = "student-avatar";
+    avatar.alt = "";
+    avatar.loading = "lazy";
+    window.setProfilePicture(avatar, student.avatar_path);
     name.textContent = student.full_name || "Unnamed student";
     status.className = `presence-status ${isActive ? "is-online" : "is-offline"}`;
     status.textContent = isActive ? "Active" : "Offline";
-    item.append(name, status);
+    identity.append(avatar, name);
+    item.append(identity, status);
     studentList.append(item);
   }
 
@@ -215,7 +365,7 @@ const loadStudents = async () => {
 const loadAvailableQuizzes = async () => {
   const { data: quizzes, error: quizError } = await window.supabaseClient
     .from("quizzes")
-    .select("id, title, subject, description")
+    .select("id, title, subject, description, revision")
     .order("created_at", { ascending: false });
 
   if (quizError) {
@@ -225,7 +375,7 @@ const loadAvailableQuizzes = async () => {
 
   const { data: attempts, error: attemptsError } = await window.supabaseClient
     .from("quiz_attempts")
-    .select("quiz_id, score, total, submitted_at");
+    .select("quiz_id, score, total, quiz_revision, submitted_at");
 
   if (attemptsError) {
     studentQuizStatus.textContent = `Unable to load quiz results: ${attemptsError.message}`;
@@ -249,9 +399,15 @@ const loadAvailableQuizzes = async () => {
     startButton.className = "secondary-button";
     startButton.type = "button";
     const hasPerfectScore =
-      previousAttempt && previousAttempt.score === previousAttempt.total;
+      previousAttempt &&
+      previousAttempt.score === previousAttempt.total &&
+      previousAttempt.quiz_revision === quiz.revision;
+    const quizWasUpdated =
+      previousAttempt && previousAttempt.quiz_revision !== quiz.revision;
     startButton.textContent = hasPerfectScore
       ? "Perfect score"
+      : quizWasUpdated
+        ? "Play updated quiz"
       : previousAttempt
         ? "Play again"
         : "Start quiz";

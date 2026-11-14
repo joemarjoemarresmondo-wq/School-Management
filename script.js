@@ -168,15 +168,29 @@ forgotPasswordButton.addEventListener("click", async () => {
   forgotPasswordButton.disabled = true;
   loginStatus.hidden = true;
   try {
+    if (!["http:", "https:"].includes(window.location.protocol)) {
+      throw new Error(
+        "Open the portal from its deployed website or a local web server before requesting a password reset.",
+      );
+    }
+
     const redirectTo = new URL("reset-password.html", window.location.href).href;
     const { error } = await window.supabaseClient.auth.resetPasswordForEmail(
       emailInput.value.trim(),
       { redirectTo },
     );
 
-    loginStatus.textContent = error
-      ? `Unable to send a password reset link: ${error.message}`
-      : "If an account exists for this Gmail, a password reset link has been sent. Check your inbox and spam folder.";
+    if (error) {
+      const redirectError =
+        error.message.toLowerCase().includes("redirect") ||
+        error.message.toLowerCase().includes("not allowed");
+      loginStatus.textContent = redirectError
+        ? `Supabase blocked the reset redirect (${redirectTo}). Add this exact URL or its site path to Authentication → URL Configuration → Redirect URLs, then try again.`
+        : `Unable to send a password reset link: ${error.message}`;
+    } else {
+      loginStatus.textContent =
+        "If an account exists for this Gmail, a password reset link has been sent. Open the latest link in this same browser and check your spam folder.";
+    }
     loginStatus.hidden = false;
   } catch (error) {
     loginStatus.textContent = `Unable to send a password reset link: ${error.message}`;

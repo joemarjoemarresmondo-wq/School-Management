@@ -19,6 +19,9 @@
         <button id="student-home-tab" class="dashboard-tab is-active" type="button" aria-pressed="true">
           Home
         </button>
+        <button id="student-profile-tab" class="dashboard-tab" type="button" aria-pressed="false">
+          Profile
+        </button>
         <button id="student-quiz-tab" class="dashboard-tab" type="button" aria-pressed="false">
           Quiz Game
         </button>
@@ -39,6 +42,119 @@
           </p>
           <ul class="student-list" id="student-list" aria-label="Student online status"></ul>
         </section>
+      </section>
+      <section id="student-profile-view" aria-labelledby="student-profile-heading" hidden>
+        <p class="eyebrow">Your account</p>
+        <h1 id="student-profile-heading">My Profile</h1>
+        <p class="directory-description">Update your account details below.</p>
+        <form id="student-profile-form" class="profile-form">
+          <div class="profile-picture-editor">
+            <img
+              class="profile-avatar"
+              id="profile-picture"
+              src="Pictures/UserDefaultPicture.jpg"
+              alt="Your profile picture"
+            />
+            <div class="profile-picture-controls">
+              <button
+                class="secondary-button picture-edit-button"
+                id="profile-picture-button"
+                type="button"
+              >
+                Edit Picture
+              </button>
+              <input
+                id="profile-picture-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                hidden
+              />
+              <p
+                class="profile-picture-status"
+                id="profile-picture-status"
+                role="status"
+                aria-live="polite"
+                hidden
+              ></p>
+            </div>
+          </div>
+          <label class="profile-field" for="student-profile-name">
+            Full name
+            <input
+              id="student-profile-name"
+              name="fullName"
+              type="text"
+              autocomplete="name"
+              maxlength="120"
+              required
+            />
+          </label>
+          <label class="profile-field" for="student-profile-email">
+            Email
+            <input
+              id="student-profile-email"
+              name="email"
+              type="email"
+              autocomplete="email"
+              required
+            />
+          </label>
+          <label class="profile-field" for="student-profile-old-password">
+            Old password
+            <span class="password-wrap">
+              <input
+                id="student-profile-old-password"
+                name="oldPassword"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Only needed to change your password"
+              />
+              <button
+                class="show-password"
+                type="button"
+                aria-controls="student-profile-old-password"
+                aria-pressed="false"
+              >
+                Show
+              </button>
+            </span>
+          </label>
+          <label class="profile-field" for="student-profile-password">
+            New password
+            <span class="password-wrap">
+              <input
+                id="student-profile-password"
+                name="password"
+                type="password"
+                autocomplete="new-password"
+                minlength="8"
+                placeholder="Leave blank to keep your current password"
+              />
+              <button
+                class="show-password"
+                type="button"
+                aria-controls="student-profile-password"
+                aria-pressed="false"
+              >
+                Show
+              </button>
+            </span>
+          </label>
+          <p class="profile-hint">
+            For security, your current password cannot be viewed. Enter a new password here to change it.
+          </p>
+          <p class="profile-role">Account type: Student</p>
+          <button class="logout-button" id="save-student-profile" type="submit">
+            Save changes
+          </button>
+          <p
+            class="dashboard-status profile-status"
+            id="student-profile-status"
+            role="status"
+            aria-live="polite"
+            hidden
+          ></p>
+        </form>
       </section>
       <section id="student-quiz-view" hidden>
         <section class="published-quizzes" aria-labelledby="student-quizzes-heading">
@@ -69,6 +185,7 @@
     <footer class="creator-credit">Created by Joemar Resmondo</footer>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js" defer></script>
+    <script src="profile-picture.js" defer></script>
     <script src="student-presence.js" defer></script>
     <script src="student-dashboard-auth.js" defer></script>
   </body>
