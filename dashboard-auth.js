@@ -1,60 +1,100 @@
 const requireSignedInUser = async () => {
-  const { data, error } = await window.supabaseClient.auth.getUser();
+  dashboardLoader.hidden = true;
+  accountStatus.textContent = "Checking your Admin sign-in…";
+  accountStatus.hidden = false;
+
+  let sessionTimer;
+  const { data, error } = await Promise.race([
+    window.supabaseClient.auth.getSession(),
+    new Promise((_, reject) => {
+      sessionTimer = window.setTimeout(
+        () =>
+          reject(
+            new Error(
+              "Timed out while checking your sign-in. Refresh the page and try again.",
+            ),
+          ),
+        10_000,
+      );
+    }),
+  ]).finally(() => window.clearTimeout(sessionTimer));
+
   if (error) {
-    if (
-      error.name === "AuthSessionMissingError" ||
-      error.message === "Auth session missing!"
-    ) {
-      await window.supabaseClient.auth.signOut({ scope: "local" });
-      window.location.replace("index.html");
-      return;
-    }
-    document.body.textContent = `Unable to verify your sign-in: ${error.message}`;
+    accountStatus.textContent = `Unable to verify your sign-in: ${error.message}`;
+    accountStatus.hidden = false;
     return;
   }
 
-  if (!data.user) {
+  const user = data.session?.user;
+  if (!user) {
     window.location.replace("index.html");
     return;
   }
 
-  if (!data.user.email_confirmed_at && !data.user.confirmed_at) {
-    await window.supabaseClient.auth.signOut();
+  if (!user.email_confirmed_at && !user.confirmed_at) {
+    await window.supabaseClient.auth.signOut({ scope: "local" });
     window.location.replace("index.html?verification=required");
     return;
   }
 
-  const { data: sessionData, error: sessionError } =
-    await window.supabaseClient.auth.getSession();
-  if (sessionError) {
-    throw sessionError;
-  }
-  activityAccessToken = sessionData.session?.access_token ?? null;
-  await startActivitySession(data.user);
+  accountStatus.textContent = "Checking your Admin account…";
+  accountStatus.hidden = false;
+  startActivitySession(user).catch((activityError) => {
+    logoutStatus.textContent = `Unable to save your login activity: ${activityError.message}`;
+    logoutStatus.hidden = false;
+  });
 
-  const profile = await loadSignedInProfile(data.user);
+  let profileLoadTimer;
+  const profile = await Promise.race([
+    loadSignedInProfile(user),
+    new Promise((_, reject) => {
+      profileLoadTimer = window.setTimeout(
+        () =>
+          reject(
+            new Error(
+              "Timed out while loading your Admin profile. Check your connection and try again.",
+            ),
+          ),
+        15_000,
+      );
+    }),
+  ]).finally(() => window.clearTimeout(profileLoadTimer));
   if (profile?.role === "student") {
     closeActivitySessionOnExit = false;
     window.location.replace("student-dashboard.html");
     return;
   }
   if (profile?.role !== "admin") {
-    dashboardLoader.hidden = true;
+    if (profile) {
+      accountStatus.textContent = "This account does not have Admin access.";
+      accountStatus.hidden = false;
+    }
     return;
   }
   if (profile?.role === "admin") {
     logsTab.hidden = false;
     quizzesTab.hidden = false;
-    adminUserId = data.user.id;
-    await loadActivityLogs();
-    await loadAdminQuizzes();
-  }
-  await loadRegisteredStudents();
-  window.setInterval(() => {
-    loadRegisteredStudents().catch((error) => {
-      studentListStatus.textContent = `Unable to refresh student status: ${error.message}`;
+    adminUserId = user.id;
+    accountStatus.hidden = true;
+    loadLatestActivityLogs().catch((loadError) => {
+      latestActivityStatus.textContent =
+        `Unable to load latest activity: ${loadError.message}`;
     });
-  }, 30_000);
+    loadAdminQuizzes().catch((loadError) => {
+      adminQuizStatus.textContent = `Unable to load quizzes: ${loadError.message}`;
+    });
+    loadRegisteredStudents().catch((loadError) => {
+      studentListStatus.textContent =
+        `Unable to load registered students: ${loadError.message}`;
+    });
+    window.setInterval(() => {
+      loadRegisteredStudents().catch((loadError) => {
+        studentListStatus.textContent =
+          `Unable to refresh student status: ${loadError.message}`;
+      });
+    }, 30_000);
+    return;
+  }
   dashboardLoader.hidden = true;
 };
 
@@ -70,17 +110,30 @@ const accountStatus = document.querySelector("#account-status");
 const logoutStatus = document.querySelector("#logout-status");
 const homeView = document.querySelector("#home-view");
 const profileView = document.querySelector("#profile-view");
+const profileForm = document.querySelector("#admin-profile-form");
 const profileName = document.querySelector("#profile-name");
 const profileEmail = document.querySelector("#profile-email");
-const profileRole = document.querySelector("#profile-role");
+const profileOldPassword = document.querySelector("#admin-profile-old-password");
+const profilePassword = document.querySelector("#admin-profile-password");
+const profileStatus = document.querySelector("#admin-profile-status");
+const saveProfileButton = document.querySelector("#save-admin-profile");
 const quizzesView = document.querySelector("#quizzes-view");
 const studentList = document.querySelector("#student-list");
 const studentListStatus = document.querySelector("#student-list-status");
 const studentTotalCount = document.querySelector("#student-total-count");
+const studentInfoDialog = document.querySelector("#student-info-dialog");
+const studentInfoName = document.querySelector("#student-info-name");
+const studentInfoEmail = document.querySelector("#student-info-email");
+const closeStudentInfoButton = document.querySelector("#close-student-info");
 let profilePictureEditor = null;
 const activityLogSection = document.querySelector("#activity-log-section");
 const activityLogList = document.querySelector("#activity-log-list");
 const activityLogStatus = document.querySelector("#activity-log-status");
+const activityLogSearch = document.querySelector("#activity-log-search");
+const toggleOlderLogsButton = document.querySelector("#toggle-older-logs");
+const latestActivityList = document.querySelector("#latest-activity-list");
+const latestActivityStatus = document.querySelector("#latest-activity-status");
+const viewMoreActivityButton = document.querySelector("#view-more-activity");
 const quizForm = document.querySelector("#quiz-form");
 const quizQuestionList = document.querySelector("#quiz-question-list");
 const quizQuestionTemplate = document.querySelector("#quiz-question-template");
@@ -95,6 +148,9 @@ let adminUserId = null;
 let activityAccessToken = null;
 let closeActivitySessionOnExit = true;
 let editingQuizId = null;
+let activityLogs = [];
+let showOlderActivityLogs = false;
+let activityLogRefreshTimer = null;
 
 window.supabaseClient.auth.onAuthStateChange((_event, session) => {
   activityAccessToken = session?.access_token ?? null;
@@ -187,6 +243,13 @@ homeTab.addEventListener("click", () => switchDashboardView("home"));
 profileTab.addEventListener("click", () => switchDashboardView("profile"));
 logsTab.addEventListener("click", () => switchDashboardView("logs"));
 quizzesTab.addEventListener("click", () => switchDashboardView("quizzes"));
+viewMoreActivityButton.addEventListener("click", () => switchDashboardView("logs"));
+activityLogSearch.addEventListener("input", () => renderActivityLogs());
+closeStudentInfoButton.addEventListener("click", () => studentInfoDialog.close());
+toggleOlderLogsButton.addEventListener("click", () => {
+  showOlderActivityLogs = !showOlderActivityLogs;
+  renderActivityLogs();
+});
 
 const addQuizQuestion = () => {
   const fragment = quizQuestionTemplate.content.cloneNode(true);
@@ -464,9 +527,8 @@ const loadSignedInProfile = async (user) => {
 
   accountName.textContent = `Name: ${profile.full_name || "Unnamed user"}`;
   accountRole.textContent = `Role: ${profile.role}`;
-  profileName.textContent = profile.full_name || "Unnamed user";
-  profileEmail.textContent = user.email || "Not available";
-  profileRole.textContent = "Administrator";
+  profileName.value = profile.full_name || "";
+  profileEmail.value = user.email || "";
   profilePictureEditor = window.createProfilePictureEditor({
     userId: user.id,
     image: document.querySelector("#profile-picture"),
@@ -478,6 +540,122 @@ const loadSignedInProfile = async (user) => {
   return profile;
 };
 
+profileForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const fullName = profileName.value.trim();
+  const password = profilePassword.value;
+  profileName.setCustomValidity(fullName ? "" : "Enter your full name.");
+  profileOldPassword.required = Boolean(password);
+  profileOldPassword.setCustomValidity(
+    password && !profileOldPassword.value
+      ? "Enter your old password to change your password."
+      : "",
+  );
+  if (!profileForm.reportValidity()) {
+    return;
+  }
+
+  const email = profileEmail.value.trim();
+  const oldPassword = profileOldPassword.value;
+  const { data: userData, error: userError } =
+    await window.supabaseClient.auth.getUser();
+
+  if (userError || !userData.user) {
+    profileStatus.textContent = `Unable to verify your account: ${
+      userError?.message || "no signed-in user was found."
+    }`;
+    profileStatus.hidden = false;
+    return;
+  }
+
+  saveProfileButton.disabled = true;
+  profileStatus.hidden = true;
+  dashboardLoader.hidden = false;
+
+  try {
+    if (password) {
+      const { data: verifiedUser, error: passwordError } =
+        await window.supabaseClient.auth.signInWithPassword({
+          email: userData.user.email,
+          password: oldPassword,
+        });
+      if (passwordError) {
+        if (
+          passwordError.code === "invalid_credentials" ||
+          passwordError.message === "Invalid login credentials"
+        ) {
+          throw new Error("Old password is incorrect.");
+        }
+        throw new Error(
+          `Unable to verify your old password: ${passwordError.message}`,
+        );
+      }
+      if (verifiedUser.user?.id !== userData.user.id) {
+        throw new Error("Unable to verify your old password for this account.");
+      }
+    }
+
+    const authUpdates = { data: { full_name: fullName } };
+    if (email !== userData.user.email) {
+      authUpdates.email = email;
+    }
+    if (password) {
+      authUpdates.password = password;
+    }
+
+    const { error: authUpdateError } =
+      await window.supabaseClient.auth.updateUser(authUpdates);
+    if (authUpdateError) {
+      throw new Error(`Unable to update your account: ${authUpdateError.message}`);
+    }
+
+    const { data: updatedProfile, error: profileUpdateError } =
+      await window.supabaseClient
+        .from("profiles")
+        .update({ full_name: fullName })
+        .eq("id", userData.user.id)
+        .select("id")
+        .maybeSingle();
+
+    if (profileUpdateError) {
+      throw new Error(
+        `Your account settings were updated, but your profile name could not be saved: ${profileUpdateError.message}`,
+      );
+    }
+    if (!updatedProfile) {
+      throw new Error(
+        "Your account settings were updated, but no profile record was changed.",
+      );
+    }
+
+    accountName.textContent = `Name: ${fullName || "Unnamed user"}`;
+    profileOldPassword.value = "";
+    profilePassword.value = "";
+    const changedPassword = password ? " Your password was updated." : "";
+    profileStatus.textContent =
+      email !== userData.user.email
+        ? `Profile updated. Check your email and confirm the change before the new address becomes active.${changedPassword}`
+        : `Profile updated.${changedPassword}`;
+    profileStatus.hidden = false;
+  } catch (error) {
+    profileStatus.textContent = error.message;
+    profileStatus.hidden = false;
+  } finally {
+    dashboardLoader.hidden = true;
+    saveProfileButton.disabled = false;
+  }
+});
+
+for (const button of profileForm.querySelectorAll(".show-password")) {
+  const passwordInput = document.getElementById(button.getAttribute("aria-controls"));
+  button.addEventListener("click", () => {
+    const isVisible = passwordInput.type === "text";
+    passwordInput.type = isVisible ? "password" : "text";
+    button.textContent = isVisible ? "Show" : "Hide";
+    button.setAttribute("aria-pressed", String(!isVisible));
+  });
+}
+
 const formatActivityTime = (timestamp) => {
   if (!timestamp) {
     return "—";
@@ -487,6 +665,126 @@ const formatActivityTime = (timestamp) => {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(timestamp));
+};
+
+const ACTIVITY_LOG_AGE_LIMIT = 24 * 60 * 60 * 1000;
+
+const isOlderActivityLog = (log, now = Date.now()) => {
+  const timestamp = Date.parse(log.logout_at || log.login_at);
+  return !Number.isFinite(timestamp) || now - timestamp >= ACTIVITY_LOG_AGE_LIMIT;
+};
+
+const loadLatestActivityLogs = async () => {
+  const { data: logs, error } = await window.supabaseClient
+    .from("activity_logs")
+    .select("full_name, email, role, event_type, login_at, logout_at")
+    .order("login_at", { ascending: false })
+    .limit(5);
+
+  if (error) {
+    latestActivityStatus.textContent = `Unable to load latest activity: ${error.message}`;
+    return;
+  }
+
+  const recentLogs = logs.filter((log) => !isOlderActivityLog(log));
+  latestActivityList.replaceChildren();
+  for (const log of recentLogs) {
+    const item = document.createElement("li");
+    const details = document.createElement("div");
+    const name = document.createElement("strong");
+    const email = document.createElement("p");
+    const activity = document.createElement("p");
+    const logTime =
+      log.event_type === "logout" ? log.logout_at || log.login_at : log.login_at;
+
+    name.textContent = log.full_name || "Unnamed user";
+    email.textContent = `Email: ${log.email || "Not available"}`;
+    activity.textContent = `${log.event_type === "logout" ? "Logged out" : "Logged in"} · ${
+      log.role || "Account"
+    } · ${formatActivityTime(logTime)}`;
+    details.append(name, email, activity);
+    item.append(details);
+    latestActivityList.append(item);
+  }
+
+  latestActivityStatus.textContent = recentLogs.length
+    ? `Showing ${recentLogs.length} recent ${recentLogs.length === 1 ? "log" : "logs"}.`
+    : "No activity logs in the last 24 hours.";
+};
+
+const renderActivityLogs = () => {
+  const now = Date.now();
+  const olderLogs = activityLogs.filter((log) => isOlderActivityLog(log, now));
+  const searchTerm = activityLogSearch.value.trim().toLocaleLowerCase();
+  const visibleLogs = activityLogs.filter((log) => {
+    if (!showOlderActivityLogs && isOlderActivityLog(log, now)) {
+      return false;
+    }
+
+    return (log.full_name || "").toLocaleLowerCase().includes(searchTerm);
+  });
+
+  activityLogList.replaceChildren();
+  for (const [index, log] of visibleLogs.entries()) {
+    const row = document.createElement("tr");
+    const numberCell = document.createElement("td");
+    const nameCell = document.createElement("td");
+    const emailCell = document.createElement("td");
+    const roleCell = document.createElement("td");
+    const loginCell = document.createElement("td");
+    const logoutCell = document.createElement("td");
+
+    numberCell.textContent = String(index + 1);
+    nameCell.textContent = log.full_name || "Unnamed user";
+    emailCell.textContent = log.email || "—";
+    roleCell.textContent = log.role || "—";
+    loginCell.textContent =
+      log.event_type === "logout" ? "—" : formatActivityTime(log.login_at);
+    logoutCell.textContent = formatActivityTime(
+      log.event_type === "logout" ? log.logout_at || log.login_at : log.logout_at,
+    );
+
+    row.append(numberCell, nameCell, emailCell, roleCell, loginCell, logoutCell);
+    activityLogList.append(row);
+  }
+
+  if (!olderLogs.length) {
+    showOlderActivityLogs = false;
+  }
+  toggleOlderLogsButton.hidden = olderLogs.length === 0;
+  toggleOlderLogsButton.textContent = showOlderActivityLogs
+    ? "Hide older logs"
+    : `Show older logs (${olderLogs.length})`;
+  toggleOlderLogsButton.setAttribute("aria-expanded", String(showOlderActivityLogs));
+
+  if (!visibleLogs.length) {
+    activityLogStatus.textContent = searchTerm
+      ? "No activity logs match that name in the current view."
+      : "No activity logs in the last 24 hours.";
+  } else if (showOlderActivityLogs) {
+    activityLogStatus.textContent =
+      `Showing ${visibleLogs.length} ${visibleLogs.length === 1 ? "log" : "logs"}, including older logs. Older logs are retained, not deleted.`;
+  } else {
+    activityLogStatus.textContent = searchTerm
+      ? `Showing ${visibleLogs.length} matching recent ${visibleLogs.length === 1 ? "log" : "logs"}. Older logs are hidden, not deleted.`
+      : `Showing ${visibleLogs.length} recent ${visibleLogs.length === 1 ? "log" : "logs"}. ${olderLogs.length} older ${olderLogs.length === 1 ? "log is" : "logs are"} hidden, not deleted.`;
+  }
+};
+
+const scheduleActivityLogRefresh = () => {
+  window.clearTimeout(activityLogRefreshTimer);
+  const now = Date.now();
+  const nextExpiration = activityLogs
+    .map((log) => Date.parse(log.logout_at || log.login_at) + ACTIVITY_LOG_AGE_LIMIT)
+    .filter((timestamp) => Number.isFinite(timestamp) && timestamp > now)
+    .sort((left, right) => left - right)[0];
+
+  if (nextExpiration) {
+    activityLogRefreshTimer = window.setTimeout(() => {
+      renderActivityLogs();
+      scheduleActivityLogRefresh();
+    }, Math.min(nextExpiration - now + 10, 2_147_483_647));
+  }
 };
 
 const loadActivityLogs = async () => {
@@ -511,33 +809,9 @@ const loadActivityLogs = async () => {
     }
   }
 
-  activityLogList.replaceChildren();
-  for (const [index, log] of logs.entries()) {
-    const row = document.createElement("tr");
-    const numberCell = document.createElement("td");
-    const nameCell = document.createElement("td");
-    const emailCell = document.createElement("td");
-    const roleCell = document.createElement("td");
-    const loginCell = document.createElement("td");
-    const logoutCell = document.createElement("td");
-
-    numberCell.textContent = String(index + 1);
-    nameCell.textContent = log.full_name || "Unnamed user";
-    emailCell.textContent = log.email || "—";
-    roleCell.textContent = log.role || "—";
-    loginCell.textContent =
-      log.event_type === "logout" ? "—" : formatActivityTime(log.login_at);
-    logoutCell.textContent = formatActivityTime(
-      log.event_type === "logout" ? log.logout_at || log.login_at : log.logout_at,
-    );
-
-    row.append(numberCell, nameCell, emailCell, roleCell, loginCell, logoutCell);
-    activityLogList.append(row);
-  }
-
-  activityLogStatus.textContent = logs.length
-    ? `${logs.length} ${logs.length === 1 ? "activity log" : "activity logs"}`
-    : "No activity logs yet.";
+  activityLogs = logs;
+  renderActivityLogs();
+  scheduleActivityLogRefresh();
 };
 
 const loadRegisteredStudents = async () => {
@@ -546,10 +820,7 @@ const loadRegisteredStudents = async () => {
 
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await window.supabaseClient
-      .from("profiles")
-      .select("full_name, last_seen_at, avatar_path")
-      .eq("role", "student")
-      .order("full_name", { ascending: true })
+      .rpc("get_admin_student_directory")
       .range(from, from + pageSize - 1);
 
     if (error) {
@@ -571,6 +842,7 @@ const loadRegisteredStudents = async () => {
     const avatar = document.createElement("img");
     const name = document.createElement("span");
     const status = document.createElement("span");
+    const viewInfoButton = document.createElement("button");
     const isActive = window.studentPresence.isActive(student.last_seen_at);
 
     identity.className = "student-identity";
@@ -581,8 +853,20 @@ const loadRegisteredStudents = async () => {
     name.textContent = student.full_name || "Unnamed student";
     status.className = `presence-status ${isActive ? "is-online" : "is-offline"}`;
     status.textContent = isActive ? "Active" : "Offline";
+    viewInfoButton.type = "button";
+    viewInfoButton.className = "secondary-button view-student-info";
+    viewInfoButton.textContent = "View Student Info";
+    viewInfoButton.setAttribute(
+      "aria-label",
+      `View info for ${student.full_name || "unnamed student"}`,
+    );
+    viewInfoButton.addEventListener("click", () => {
+      studentInfoName.textContent = student.full_name || "Unnamed student";
+      studentInfoEmail.textContent = student.email || "Email not available";
+      studentInfoDialog.showModal();
+    });
     identity.append(avatar, name);
-    item.append(identity, status);
+    item.append(identity, status, viewInfoButton);
     studentList.append(item);
   }
 
@@ -648,5 +932,6 @@ logoutButton.addEventListener("click", async () => {
 
 requireSignedInUser().catch((error) => {
   dashboardLoader.hidden = true;
-  document.body.textContent = `Unable to connect to the sign-in service: ${error.message}`;
+  accountStatus.textContent = `Unable to load the Admin Dashboard: ${error.message}`;
+  accountStatus.hidden = false;
 });

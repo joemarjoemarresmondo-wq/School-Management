@@ -308,6 +308,33 @@ $$;
 revoke all on function public.is_admin() from public, anon;
 grant execute on function public.is_admin() to authenticated;
 
+create or replace function public.get_admin_student_directory()
+returns table (
+  full_name text,
+  email text,
+  last_seen_at timestamptz,
+  avatar_path text
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    profiles.full_name,
+    users.email::text,
+    profiles.last_seen_at,
+    profiles.avatar_path
+  from public.profiles as profiles
+  join auth.users as users on users.id = profiles.id
+  where profiles.role = 'student'
+    and (select public.is_admin())
+  order by profiles.full_name, profiles.id;
+$$;
+
+revoke all on function public.get_admin_student_directory() from public, anon;
+grant execute on function public.get_admin_student_directory() to authenticated;
+
 drop policy if exists "Admins can read activity logs" on public.activity_logs;
 create policy "Admins can read activity logs"
   on public.activity_logs

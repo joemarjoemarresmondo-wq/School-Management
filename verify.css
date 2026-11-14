@@ -14,7 +14,6 @@
 
 body {
   display: grid;
-  min-width: 320px;
   min-height: 100vh;
   margin: 0;
   padding: 24px;
@@ -97,4 +96,19 @@ h1 {
   color: #174b40;
   font-size: clamp(26px, 6vw, 36px);
   letter-spacing: -0.04em;
+}
+
+@media (max-width: 480px) {
+  body {
+    padding: 14px;
+  }
+
+  .verification {
+    padding: 36px 22px;
+    border-radius: 16px;
+  }
+
+  .verification form {
+    margin-top: 22px;
+  }
 }
